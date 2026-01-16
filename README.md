@@ -306,6 +306,86 @@ JAX and PyTorch implementations handle precision as follows:
 
 With torch.compile, inference speed is comparable between JAX and PyTorch.
 
+## RECAP Training (pi0.6)
+
+RECAP (RL with Experience and Corrections via Advantage-conditioned Policies) enables iterative policy improvement using advantage conditioning. This is the training algorithm introduced in the [pi0.6 paper](https://www.physicalintelligence.company/).
+
+### How RECAP Works
+
+RECAP improves upon standard behavior cloning by:
+1. **Training a value function** to predict time-to-completion for each state
+2. **Computing advantages** to identify which trajectories are better than average
+3. **Conditioning the policy** on an improvement indicator (I=1 for good, I=0 for bad trajectories)
+4. **Iteratively collecting new data** with the improved policy and retraining
+
+At inference time, we set I=1 to generate actions from "good" trajectory behavior.
+
+### Quick Start
+
+```bash
+# Option 1: Train with LeRobot ALOHA simulation data
+python scripts/train_recap_full.py --config recap_aloha_sim
+
+# Option 2: Collect data from Isaac Lab and train
+python scripts/isaaclab_data_collection.py --task Isaac-Franka-Cabinet-Direct-v0 --num_episodes 100
+python scripts/train_recap_full.py --config recap_aloha_sim
+
+# Run benchmarks to compare with pi0.6 paper
+python scripts/benchmark_recap.py --compare-paper --run_training
+```
+
+### RECAP Training Phases
+
+1. **Value Function Training**: Learns to predict time-to-completion
+   - Uses distributional value function with 201 bins
+   - Trained with cross-entropy loss on (observation, time_remaining) pairs
+
+2. **Advantage Computation**: A(o_t) = V(o_t) - actual_time_remaining
+   - Positive advantage = trajectory is better than average
+   - Sets improvement indicator I_t = 1 if A > 0
+
+3. **Policy Warmup**: Standard BC training without advantage conditioning
+
+4. **RECAP Training**: Policy training with advantage conditioning
+   - Learns to imitate good trajectories (I=1)
+   - Learns to avoid behaviors from bad trajectories (I=0)
+
+### Using a Trained RECAP Policy
+
+```python
+from openpi.recap.pi0_recap import Pi0RECAPConfig
+import jax
+
+# Create and load policy
+config = Pi0RECAPConfig(
+    paligemma_variant="gemma_2b",
+    action_expert_variant="gemma_2b",
+    action_dim=9,
+    action_horizon=50,
+)
+rng = jax.random.key(42)
+policy = config.create(rng)
+
+# Load checkpoint
+# ... (see checkpoint loading example in train_recap_full.py)
+
+# Sample actions with I=1 (want good trajectories)
+improvement_indicator = jnp.ones(batch_size, dtype=jnp.bool_)
+actions = policy.sample_actions(rng, observation, improvement_indicator=improvement_indicator)
+```
+
+### Configuration
+
+See `configs/benchmark_recap.yaml` for detailed configuration options. Key parameters:
+- `warmup_steps`: Steps of standard training before RECAP (default: 50000)
+- `recap_iterations`: Number of collect-train cycles (default: 3)
+- `steps_per_iteration`: Training steps per cycle (default: 10000)
+
+### Documentation
+
+- [RECAP Training Guide](docs/recap_training.md): Detailed training instructions
+- [Isaac Lab Setup](docs/isaac_lab_setup.md): Setting up Isaac Lab for data collection
+
 ## Troubleshooting
 
 We will collect common issues and their solutions here. If you encounter an issue, please check here first. If you can't find a solution, please file an issue on the repo (see [here](CONTRIBUTING.md) for guidelines).

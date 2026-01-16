@@ -1,0 +1,119 @@
+# RECAP Benchmark Configuration
+# Matches pi0.6 paper parameters for fair comparison
+
+# Value Function Configuration
+value_function:
+  # Number of bins for distributional value prediction
+  # Paper uses 201 bins for time-to-completion from 0-200+ steps
+  num_bins: 201
+
+  # Vision backbone (shares with policy)
+  backbone: paligemma  # Options: paligemma, siglip
+
+  # Value head hidden dimension
+  hidden_dim: 1024
+
+  # Maximum episode length (clips predictions)
+  max_episode_length: 200
+
+# Training Configuration
+training:
+  # Standard training before RECAP (warmup phase)
+  # Paper: ~50,000 steps for full training
+  warmup_steps: 50000
+
+  # Number of RECAP collect-train cycles
+  # Paper: 3 iterations typically sufficient
+  recap_iterations: 3
+
+  # Training steps per RECAP iteration
+  steps_per_iteration: 10000
+
+  # Learning rate
+  learning_rate: 1e-4
+
+  # Batch size (per GPU)
+  batch_size: 32
+
+  # Gradient accumulation steps (effective batch = batch_size * accum_steps)
+  gradient_accumulation_steps: 1
+
+# Data Configuration
+data:
+  # Episodes to collect per RECAP iteration
+  episodes_per_iteration: 100
+
+  # Action chunk size (horizon)
+  action_horizon: 50
+
+  # Image resolution
+  image_size: 224
+
+  # Cameras to use
+  cameras:
+    - base_0_rgb
+    # - left_wrist_0_rgb  # Uncomment for bimanual tasks
+    # - right_wrist_0_rgb
+
+# Model Configuration
+model:
+  # PaliGemma variant
+  paligemma_variant: gemma_2b  # Options: dummy, gemma_2b
+
+  # Action expert variant
+  action_expert_variant: gemma_2b
+
+  # Pi0.5 mode (uses adaRMS conditioning)
+  pi05: true
+
+  # Advantage embedding dimension
+  advantage_embedding_dim: 64
+
+# Benchmark Targets
+# Expected values from pi0.6 paper for comparison
+benchmarks:
+  aloha_sim_transfer_cube:
+    # Success rates
+    baseline_success_rate: 0.60
+    recap_success_rate: 0.85
+    improvement_factor: 1.42  # 85/60
+
+    # Policy losses
+    baseline_policy_loss: 0.14
+    recap_policy_loss: 0.05
+
+    # Value function
+    value_mse_threshold: 10.0
+
+    # Training efficiency
+    convergence_steps: 30000  # Steps to reach target loss
+
+  franka_cabinet:
+    baseline_success_rate: 0.45
+    recap_success_rate: 0.75
+    improvement_factor: 1.67
+
+    baseline_policy_loss: 0.18
+    recap_policy_loss: 0.08
+
+    value_mse_threshold: 15.0
+    convergence_steps: 40000
+
+# Quick Test Configuration
+# Use these values for rapid testing
+quick_test:
+  warmup_steps: 100
+  steps_per_iteration: 50
+  recap_iterations: 1
+  episodes_per_iteration: 10
+  batch_size: 8
+
+# Full Production Configuration
+# Use these values for reproducing paper results
+production:
+  warmup_steps: 50000
+  steps_per_iteration: 10000
+  recap_iterations: 3
+  episodes_per_iteration: 100
+  batch_size: 32
+  learning_rate: 1e-4

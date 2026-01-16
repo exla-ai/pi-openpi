@@ -52,7 +52,12 @@ class Config:
     lora_configs: dict[str, lora.LoRAConfig] = dataclasses.field(default_factory=dict)
 
 
-Variant = Literal["dummy", "gemma_300m", "gemma_300m_lora", "gemma_2b", "gemma_2b_lora"]
+Variant = Literal[
+    "dummy", "gemma_300m", "gemma_300m_lora", "gemma_2b", "gemma_2b_lora",
+    "gemma3_4b", "gemma3_4b_lora",
+    "gemma_860m", "gemma_860m_lora",  # pi0.6 Action Expert (~860M params)
+    "gemma_670m", "gemma_670m_lora",  # pi0.6 Value Function (~670M params)
+]
 
 
 def get_config(variant: Variant) -> Config:
@@ -105,6 +110,71 @@ def get_config(variant: Variant) -> Config:
             num_kv_heads=1,
             head_dim=256,
             lora_configs={"attn": lora.LoRAConfig(rank=32, alpha=32.0), "ffn": lora.LoRAConfig(rank=32, alpha=32.0)},
+        )
+    if variant == "gemma3_4b":
+        # Gemma 3 4B - used in pi0.6
+        # Architecture from https://huggingface.co/google/gemma-3-4b-pt
+        return Config(
+            width=2304,           # hidden_size
+            depth=26,             # num_hidden_layers
+            mlp_dim=9216,         # intermediate_size
+            num_heads=8,          # num_attention_heads
+            num_kv_heads=4,       # num_key_value_heads (GQA)
+            head_dim=256,         # head_dim
+        )
+    if variant == "gemma3_4b_lora":
+        # Gemma 3 4B with LoRA for fine-tuning
+        return Config(
+            width=2304,
+            depth=26,
+            mlp_dim=9216,
+            num_heads=8,
+            num_kv_heads=4,
+            head_dim=256,
+            lora_configs={"attn": lora.LoRAConfig(rank=16, alpha=16.0), "ffn": lora.LoRAConfig(rank=16, alpha=16.0)},
+        )
+    if variant == "gemma_860m":
+        # ~860M Action Expert for pi0.6
+        # Interpolated between gemma_300m (311M) and gemma_2b
+        return Config(
+            width=1536,
+            depth=24,
+            mlp_dim=6144,
+            num_heads=12,
+            num_kv_heads=2,
+            head_dim=256,
+        )
+    if variant == "gemma_860m_lora":
+        # ~860M Action Expert with LoRA
+        return Config(
+            width=1536,
+            depth=24,
+            mlp_dim=6144,
+            num_heads=12,
+            num_kv_heads=2,
+            head_dim=256,
+            lora_configs={"attn": lora.LoRAConfig(rank=16, alpha=16.0), "ffn": lora.LoRAConfig(rank=16, alpha=16.0)},
+        )
+    if variant == "gemma_670m":
+        # ~670M Value Function VLM for pi0.6
+        return Config(
+            width=1280,
+            depth=20,
+            mlp_dim=5120,
+            num_heads=10,
+            num_kv_heads=2,
+            head_dim=256,
+        )
+    if variant == "gemma_670m_lora":
+        # ~670M Value Function VLM with LoRA
+        return Config(
+            width=1280,
+            depth=20,
+            mlp_dim=5120,
+            num_heads=10,
+            num_kv_heads=2,
+            head_dim=256,
+            lora_configs={"attn": lora.LoRAConfig(rank=16, alpha=16.0), "ffn": lora.LoRAConfig(rank=16, alpha=16.0)},
         )
     raise ValueError(f"Unknown variant: {variant}")
 
