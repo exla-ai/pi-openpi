@@ -50,6 +50,36 @@ class DataLoader(Protocol[T_co]):
         raise NotImplementedError("Subclasses of DataLoader should implement __iter__.")
 
 
+class ConcatDataset(Dataset[T_co]):
+    """Concatenate multiple datasets into one."""
+
+    def __init__(self, datasets: Sequence[Dataset]):
+        self._datasets = list(datasets)
+        self._cumulative_sizes = []
+        cumsum = 0
+        for ds in self._datasets:
+            cumsum += len(ds)
+            self._cumulative_sizes.append(cumsum)
+
+    def __getitem__(self, index: SupportsIndex) -> T_co:
+        idx = index.__index__()
+        if idx < 0:
+            if -idx > len(self):
+                raise IndexError("index out of range")
+            idx = len(self) + idx
+
+        # Find which dataset this index belongs to
+        for i, cumsize in enumerate(self._cumulative_sizes):
+            if idx < cumsize:
+                if i == 0:
+                    return self._datasets[i][idx]
+                return self._datasets[i][idx - self._cumulative_sizes[i - 1]]
+        raise IndexError("index out of range")
+
+    def __len__(self) -> int:
+        return self._cumulative_sizes[-1] if self._cumulative_sizes else 0
+
+
 class TransformedDataset(Dataset[T_co]):
     def __init__(self, dataset: Dataset, transforms: Sequence[_transforms.DataTransformFn]):
         self._dataset = dataset
@@ -137,12 +167,47 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
+    # Collect all repo_ids (primary + additional)
+    all_repo_ids = [repo_id]
+    if data_config.additional_repo_ids:
+        all_repo_ids.extend(data_config.additional_repo_ids)
+
+    # If multiple datasets, create and concatenate them
+    if len(all_repo_ids) > 1:
+        datasets = []
+        all_tasks = {}
+        for rid in all_repo_ids:
+            dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(rid)
+            dataset = lerobot_dataset.LeRobotDataset(
+                rid,
+                delta_timestamps={
+                    key: [t / dataset_meta.fps for t in range(action_horizon)]
+                    for key in data_config.action_sequence_keys
+                },
+                video_backend="pyav",
+            )
+            logging.info(f"Loaded dataset {rid} with {len(dataset)} samples")
+            # Collect tasks from all datasets for prompt_from_task
+            if dataset_meta.tasks:
+                all_tasks.update(dataset_meta.tasks)
+            datasets.append(dataset)
+
+        combined = ConcatDataset(datasets)
+        logging.info(f"Combined {len(datasets)} datasets into {len(combined)} total samples")
+
+        if data_config.prompt_from_task and all_tasks:
+            combined = TransformedDataset(combined, [_transforms.PromptFromLeRobotTask(all_tasks)])
+
+        return combined
+
+    # Single dataset case
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
     dataset = lerobot_dataset.LeRobotDataset(
         data_config.repo_id,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        video_backend="pyav",  # Use pyav instead of torchcodec for wider FFmpeg compatibility
     )
 
     if data_config.prompt_from_task:

@@ -22,6 +22,7 @@ import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
+import openpi.shared.nnx_utils as nnx_utils
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
 import openpi.training.misc.polaris_config as polaris_config
 import openpi.training.misc.roboarena_config as roboarena_config
@@ -65,6 +66,8 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
+    # Additional repo_ids for multi-dataset training (concatenated with primary repo_id)
+    additional_repo_ids: Sequence[str] = ()
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -421,6 +424,77 @@ class RLDSDroidDataConfig(DataConfigFactory):
             action_space=self.action_space,
             datasets=self.datasets,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class MultiLeRobotDataConfig(DataConfigFactory):
+    """Config for training on multiple LeRobot datasets simultaneously.
+
+    This allows combining multiple datasets (e.g., multiple ALOHA sim datasets)
+    into a single training run for more diverse training data.
+    """
+    # Override repo_id from parent - will be set from repo_ids[0] in create()
+    repo_id: str = "multi-dataset"
+    # List of repo_ids to combine
+    repo_ids: Sequence[str] = ()
+    # Default prompt to use if prompt_from_task is False
+    default_prompt: str | None = None
+    # Whether to load prompts from dataset tasks
+    prompt_from_task: bool = False
+    # Repack transforms for all datasets (should be compatible with all datasets)
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {"cam_high": "observation.images.top"},
+                        "state": "observation.state",
+                        "actions": "action",
+                    }
+                )
+            ]
+        )
+    )
+    # Action keys
+    action_sequence_keys: Sequence[str] = ("action",)
+    # If true, convert joint dimensions to deltas
+    use_delta_joint_actions: bool = True
+    # If true, adapt to pi space
+    adapt_to_pi: bool = True
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[aloha_policy.AlohaInputs(adapt_to_pi=self.adapt_to_pi)],
+            outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
+        )
+        if self.use_delta_joint_actions:
+            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        # Use the first repo_id as primary, additional ones in additional_repo_ids
+        primary_repo_id = self.repo_ids[0] if self.repo_ids else None
+        additional = list(self.repo_ids[1:]) if len(self.repo_ids) > 1 else []
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repo_id=primary_repo_id,
+            additional_repo_ids=additional,
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
+            prompt_from_task=self.prompt_from_task,
+        )
+
+    @property
+    def all_repo_ids(self) -> Sequence[str]:
+        return self.repo_ids
 
 
 @dataclasses.dataclass(frozen=True)
@@ -929,6 +1003,438 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    #
+    # Pi0.6 configs - Pi0.5 base with frozen backbone + RECAP training.
+    # Uses pretrained Pi0.5 weights, freezes VLM backbone, trains action expert + RECAP.
+    # This leverages Pi0.5's existing robot knowledge for faster training.
+    #
+    TrainConfig(
+        name="pi06_aloha_sim",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",  # Pi0.5 architecture
+            action_expert_variant="gemma_300m",  # Pi0.5 action expert
+            action_dim=14,  # ALOHA uses 14-dim actions (7 per arm)
+            action_horizon=50,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        # Load pretrained Pi0.5 weights
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Freeze VLM backbone (gemma_2b), only train action expert + projection layers
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),  # Freeze main LLM, not action expert
+        num_train_steps=30_000,  # Fewer steps needed with frozen backbone
+        batch_size=32,
+    ),
+    # Pi0.6 Base - Uses Pi0.5 pretrained weights with frozen VLM backbone
+    # Only trains action expert on additional data, very efficient
+    TrainConfig(
+        name="pi06_base",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",  # Pi0.5 architecture
+            action_expert_variant="gemma_300m",  # Pi0.5 action expert
+            action_dim=7,  # Standard 7-dim actions (6 DoF + gripper)
+            action_horizon=50,
+        ),
+        data=RLDSDroidDataConfig(
+            repo_id="droid",
+            rlds_data_dir="/data/rlds_datasets",  # Update this path
+            action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
+            datasets=(
+                droid_rlds_dataset.RLDSDataset(
+                    name="droid",
+                    version="1.0.1",
+                    weight=1.0,
+                    filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json",
+                ),
+            ),
+        ),
+        # Load Pi0.5 pretrained weights (already trained on DROID)
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Freeze VLM backbone, only train action expert
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,  # Lower LR for fine-tuning
+            decay_steps=50_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=50_000,  # Much fewer steps with frozen backbone
+        batch_size=256,
+        save_interval=5_000,
+        keep_period=10_000,
+        num_workers=0,
+    ),
+    # Pi0.6 Base with LoRA - Even more efficient fine-tuning
+    TrainConfig(
+        name="pi06_base_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b_lora",  # LoRA for VLM
+            action_expert_variant="gemma_300m_lora",  # LoRA for action expert
+            action_dim=7,
+            action_horizon=50,
+        ),
+        data=RLDSDroidDataConfig(
+            repo_id="droid",
+            rlds_data_dir="/data/rlds_datasets",
+            action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
+            datasets=(
+                droid_rlds_dataset.RLDSDataset(
+                    name="droid",
+                    version="1.0.1",
+                    weight=1.0,
+                    filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json",
+                ),
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # LoRA freeze filter - freezes base weights, only trains LoRA adapters
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=1e-4,  # Can use higher LR with LoRA
+            decay_steps=30_000,
+            decay_lr=1e-5,
+        ),
+        num_train_steps=30_000,  # Even fewer steps with LoRA
+        batch_size=64,  # Can use larger batch with LoRA (less memory)
+        save_interval=5_000,
+        keep_period=10_000,
+        num_workers=0,
+        ema_decay=None,  # Turn off EMA for LoRA
+    ),
+    # Pi0.6 Real ALOHA - Fine-tune Pi0.5 on real ALOHA data with frozen backbone
+    TrainConfig(
+        name="pi06_aloha_real",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",  # Pi0.5 architecture
+            action_expert_variant="gemma_300m",
+            action_dim=14,
+            action_horizon=50,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="physical-intelligence/aloha_pen_uncap_diverse",
+            default_prompt="Uncap the pen",
+            use_delta_joint_actions=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ],
+            ),
+        ),
+        # Load Pi0.5 pretrained weights
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Freeze VLM backbone
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=20_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=20_000,  # Fewer steps with frozen backbone
+        batch_size=32,
+        save_interval=2_000,
+        keep_period=5_000,
+    ),
+    # Pi0.6 Multi-Dataset - All ALOHA sim datasets with frozen Pi0.5 backbone
+    TrainConfig(
+        name="pi06_multi",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",  # Pi0.5 architecture
+            action_expert_variant="gemma_300m",
+            action_dim=14,
+            action_horizon=50,
+        ),
+        data=MultiLeRobotDataConfig(
+            repo_ids=(
+                "lerobot/aloha_sim_transfer_cube_human",      # 50 episodes
+                "lerobot/aloha_sim_insertion_human",          # 50 episodes
+                "lerobot/aloha_sim_transfer_cube_scripted",   # 50 episodes
+                "lerobot/aloha_sim_insertion_scripted",       # 50 episodes
+            ),
+            default_prompt="Complete the manipulation task",
+            use_delta_joint_actions=False,
+            adapt_to_pi=True,
+        ),
+        # Load Pi0.5 pretrained weights
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Freeze VLM backbone
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=30_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=30_000,  # Much fewer steps with frozen backbone
+        batch_size=32,
+        save_interval=5_000,
+        keep_period=10_000,
+    ),
+    # Pi0.6 Comprehensive - Multi-task fine-tuning for general-purpose robot
+    # Trains on diverse tasks: manipulation, language following, multi-embodiment
+    # Uses frozen backbone for efficiency
+    TrainConfig(
+        name="pi06_comprehensive",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",
+            action_expert_variant="gemma_300m",
+            action_dim=7,
+            action_horizon=50,
+        ),
+        data=RLDSDroidDataConfig(
+            repo_id="droid",
+            rlds_data_dir="/data/rlds_datasets",
+            action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
+            datasets=(
+                # DROID - Diverse manipulation, multiple robots (~20M samples)
+                # Covers: pick/place, drawer, cabinet, diverse objects
+                droid_rlds_dataset.RLDSDataset(
+                    name="droid", version="1.0.1", weight=0.35,
+                    filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json",
+                ),
+                # Bridge V2 - WidowX tabletop, language-conditioned (~60k demos)
+                # Covers: kitchen tasks, tool use, diverse objects
+                droid_rlds_dataset.RLDSDataset(
+                    name="bridge_dataset", version="1.0.0", weight=0.20,
+                ),
+                # RT-1 - Language-conditioned manipulation (~130k episodes)
+                # Covers: following natural language instructions
+                droid_rlds_dataset.RLDSDataset(
+                    name="rt1_robot_action", version="0.1.0", weight=0.15,
+                ),
+                # Fractal - Google robot diverse manipulation
+                droid_rlds_dataset.RLDSDataset(
+                    name="fractal20220817_data", version="0.1.0", weight=0.10,
+                ),
+                # TACO Play - Benchmark tasks, precise manipulation
+                droid_rlds_dataset.RLDSDataset(
+                    name="taco_play", version="0.1.0", weight=0.05,
+                ),
+                # Kuka - Industrial manipulation, high precision
+                droid_rlds_dataset.RLDSDataset(
+                    name="kuka", version="0.1.0", weight=0.05,
+                ),
+                # Berkeley Cable Routing - Deformable objects
+                droid_rlds_dataset.RLDSDataset(
+                    name="berkeley_cable_routing", version="0.1.0", weight=0.05,
+                ),
+                # Berkeley UR5 - Different embodiment
+                droid_rlds_dataset.RLDSDataset(
+                    name="berkeley_autolab_ur5", version="0.1.0", weight=0.05,
+                ),
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=2_000,
+            peak_lr=5e-5,
+            decay_steps=100_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=100_000,  # More steps for diverse tasks
+        batch_size=256,
+        save_interval=10_000,
+        keep_period=20_000,
+        num_workers=0,
+    ),
+    # Pi0.6 LIBERO - Fine-tune for LIBERO benchmark (target: 96%+ average)
+    # After pi06_comprehensive, fine-tune specifically for LIBERO evaluation
+    TrainConfig(
+        name="pi06_libero",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma_2b",
+            action_expert_variant="gemma_300m",
+            action_dim=7,
+            action_horizon=50,
+        ),
+        data=LeRobotLiberoDataConfig(
+            repo_id="physical-intelligence/libero",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        # Load from pi06_comprehensive checkpoint for best results
+        # Or use Pi0.5 base: "gs://openpi-assets/checkpoints/pi05_base/params"
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=20_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=20_000,
+        batch_size=32,
+        save_interval=5_000,
+        keep_period=10_000,
+    ),
+    # Pi0.6 Full Pipeline - Run this for the complete general-purpose model
+    # Stage 1: Diverse multi-task pretraining (pi06_comprehensive)
+    # Stage 2: Task-specific fine-tuning (pi06_aloha_sim or pi06_libero)
+    # Stage 3: RECAP training for policy improvement
+    #
+    # Commands:
+    # 1. python scripts/train.py pi06_comprehensive --exp_name pi06_stage1
+    # 2. python scripts/train.py pi06_aloha_sim --exp_name pi06_stage2 \
+    #        --weight_loader.params_path ./checkpoints/pi06_comprehensive/pi06_stage1/100000/params
+    # 3. python scripts/train_recap_full.py --resume_from ./checkpoints/pi06_aloha_sim/pi06_stage2/30000
+    #
+    # ==================================================================================
+    # TRUE Pi0.6 ARCHITECTURE (Gemma 3 4B + 860M Action Expert)
+    # ==================================================================================
+    # These configs use the actual Pi0.6 architecture from the paper:
+    # - Gemma 3 4B VLM backbone (~4B params)
+    # - 860M Action Expert (26 layers, matches backbone depth)
+    # - Total: ~5B parameters
+    #
+    # NOTE: Requires more GPU memory (~80GB/GPU) and training data than Pi0.5-based configs
+    # Recommended: 8x H100 GPUs, ~6 days training time
+    #
+    TrainConfig(
+        name="pi06_gemma3_aloha_sim",
+        model=pi0_config.Pi0Config(
+            pi05=True,  # Still use Pi0.5-style discrete state input
+            paligemma_variant="gemma3_4b",  # TRUE Pi0.6: Gemma 3 4B
+            action_expert_variant="gemma_860m",  # TRUE Pi0.6: 860M action expert
+            action_dim=14,  # ALOHA uses 14-dim actions
+            action_horizon=50,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        # Load Gemma 3 4B from HuggingFace + PaliGemma vision encoder
+        weight_loader=weight_loaders.Gemma3WeightLoader(),
+        # Train everything (no frozen backbone for full Pi0.6)
+        freeze_filter=nnx.Nothing,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=2_000,
+            peak_lr=1e-5,  # Lower LR for larger model
+            decay_steps=100_000,
+            decay_lr=1e-7,
+        ),
+        num_train_steps=100_000,
+        batch_size=16,  # Smaller batch for memory
+        save_interval=10_000,
+        keep_period=20_000,
+        num_workers=0,
+    ),
+    # Pi0.6 Gemma3 - LIBERO benchmark
+    TrainConfig(
+        name="pi06_gemma3_libero",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma3_4b",
+            action_expert_variant="gemma_860m",
+            action_dim=7,
+            action_horizon=50,
+        ),
+        data=LeRobotLiberoDataConfig(
+            repo_id="physical-intelligence/libero",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        weight_loader=weight_loaders.Gemma3WeightLoader(),
+        freeze_filter=nnx.Nothing,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=2_000,
+            peak_lr=1e-5,
+            decay_steps=50_000,
+            decay_lr=1e-7,
+        ),
+        num_train_steps=50_000,
+        batch_size=16,
+        save_interval=10_000,
+        keep_period=20_000,
+        num_workers=0,
+    ),
+    # Pi0.6 Gemma3 with Frozen Backbone - More memory efficient
+    # Freezes Gemma 3 backbone, only trains 860M action expert
+    TrainConfig(
+        name="pi06_gemma3_frozen",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma3_4b",
+            action_expert_variant="gemma_860m",
+            action_dim=14,
+            action_horizon=50,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        weight_loader=weight_loaders.Gemma3WeightLoader(),
+        # Freeze Gemma 3 backbone, only train action expert
+        freeze_filter=nnx_utils.PathRegex(".*PaliGemma/llm/(?!.*_1).*"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=2.5e-5,
+            decay_steps=30_000,
+            decay_lr=1e-6,
+        ),
+        num_train_steps=30_000,
+        batch_size=32,
+        save_interval=5_000,
+        keep_period=10_000,
+        num_workers=0,
+    ),
+    # Pi0.6 Gemma3 with LoRA - Most memory efficient
+    TrainConfig(
+        name="pi06_gemma3_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant="gemma3_4b_lora",
+            action_expert_variant="gemma_860m_lora",
+            action_dim=14,
+            action_horizon=50,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        weight_loader=weight_loaders.Gemma3WeightLoader(),
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma3_4b_lora", action_expert_variant="gemma_860m_lora"
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=1e-4,  # Higher LR for LoRA
+            decay_steps=20_000,
+            decay_lr=1e-5,
+        ),
+        num_train_steps=20_000,
+        batch_size=32,
+        save_interval=5_000,
+        keep_period=10_000,
+        num_workers=0,
+        ema_decay=None,
     ),
     #
     # Debugging configs.

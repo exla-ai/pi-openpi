@@ -135,23 +135,25 @@ def get_config(variant: Variant) -> Config:
         )
     if variant == "gemma_860m":
         # ~860M Action Expert for pi0.6
-        # Interpolated between gemma_300m (311M) and gemma_2b
+        # Must match gemma3_4b in: depth, num_heads, num_kv_heads, head_dim
+        # Only width and mlp_dim can differ to adjust model size
         return Config(
-            width=1536,
-            depth=24,
-            mlp_dim=6144,
-            num_heads=12,
-            num_kv_heads=2,
-            head_dim=256,
+            width=1280,           # Reduced for ~860M params
+            depth=26,             # Must match gemma3_4b
+            mlp_dim=5120,         # Reduced for ~860M params
+            num_heads=8,          # Must match gemma3_4b
+            num_kv_heads=4,       # Must match gemma3_4b
+            head_dim=256,         # Must match gemma3_4b
         )
     if variant == "gemma_860m_lora":
         # ~860M Action Expert with LoRA
+        # Must match gemma3_4b in: depth, num_heads, num_kv_heads, head_dim
         return Config(
-            width=1536,
-            depth=24,
-            mlp_dim=6144,
-            num_heads=12,
-            num_kv_heads=2,
+            width=1280,
+            depth=26,
+            mlp_dim=5120,
+            num_heads=8,
+            num_kv_heads=4,
             head_dim=256,
             lora_configs={"attn": lora.LoRAConfig(rank=16, alpha=16.0), "ffn": lora.LoRAConfig(rank=16, alpha=16.0)},
         )
