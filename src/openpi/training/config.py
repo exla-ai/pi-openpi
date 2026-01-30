@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import dataclasses
 import difflib
 import logging
+import os
 import pathlib
 from typing import Any, Literal, Protocol, TypeAlias
 
@@ -832,13 +833,12 @@ _CONFIGS = [
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        pytorch_weight_path="/path/to/your/pytorch_weight_path",
         num_train_steps=30_000,
     ),
     #
     # Fine-tuning Aloha configs.
     #
-    # This is a test config that is used to illustate how train on a custom LeRobot dataset.
+    # This is a test config that is used to illustrate how to train on a custom LeRobot dataset.
     # For instructions on how to convert and train on your own Aloha dataset see examples/aloha_real/README.md
     TrainConfig(
         name="pi0_aloha_pen_uncap",
@@ -914,8 +914,8 @@ _CONFIGS = [
         ),
         data=RLDSDroidDataConfig(
             repo_id="droid",
-            # Set this to the path to your DROID RLDS dataset (the parent directory of the `droid` directory).
-            rlds_data_dir="<path_to_droid_rlds_dataset>",
+            # Set DROID_RLDS_DIR environment variable or update this path to your DROID RLDS dataset.
+            rlds_data_dir=os.environ.get("DROID_RLDS_DIR", "/data/rlds_datasets"),
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
@@ -944,8 +944,8 @@ _CONFIGS = [
         ),
         data=RLDSDroidDataConfig(
             repo_id="droid",
-            # Set this to the path to your DROID RLDS dataset (the parent directory of the `droid` directory).
-            rlds_data_dir="/mnt/pi-data/kevin",
+            # Set DROID_RLDS_DIR environment variable or update this path to your DROID RLDS dataset.
+            rlds_data_dir=os.environ.get("DROID_RLDS_DIR", "/data/rlds_datasets"),
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             assets=AssetsConfig(
                 assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets/",
@@ -1043,7 +1043,7 @@ _CONFIGS = [
         ),
         data=RLDSDroidDataConfig(
             repo_id="droid",
-            rlds_data_dir="/data/rlds_datasets",  # Update this path
+            rlds_data_dir=os.environ.get("DROID_RLDS_DIR", "/data/rlds_datasets"),
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             datasets=(
                 droid_rlds_dataset.RLDSDataset(
@@ -1082,7 +1082,7 @@ _CONFIGS = [
         ),
         data=RLDSDroidDataConfig(
             repo_id="droid",
-            rlds_data_dir="/data/rlds_datasets",
+            rlds_data_dir=os.environ.get("DROID_RLDS_DIR", "/data/rlds_datasets"),
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             datasets=(
                 droid_rlds_dataset.RLDSDataset(
@@ -1206,7 +1206,7 @@ _CONFIGS = [
         ),
         data=RLDSDroidDataConfig(
             repo_id="droid",
-            rlds_data_dir="/data/rlds_datasets",
+            rlds_data_dir=os.environ.get("DROID_RLDS_DIR", "/data/rlds_datasets"),
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
             datasets=(
                 # DROID - Diverse manipulation, multiple robots (~20M samples)

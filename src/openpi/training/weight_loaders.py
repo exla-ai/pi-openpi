@@ -1,4 +1,5 @@
 import dataclasses
+import glob
 import logging
 import re
 from typing import Protocol, runtime_checkable
@@ -11,6 +12,14 @@ import openpi.shared.array_typing as at
 import openpi.shared.download as download
 
 logger = logging.getLogger(__name__)
+
+# Optional imports for Gemma 3 weight loading
+try:
+    from huggingface_hub import hf_hub_download, snapshot_download
+    from safetensors import safe_open
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
 
 # Gemma 3 HuggingFace model ID
 GEMMA3_4B_HF_ID = "google/gemma-3-4b-pt"
@@ -118,50 +127,52 @@ class Gemma3WeightLoader(WeightLoader):
 
     def _load_gemma3_from_hf(self) -> dict:
         """Load and convert Gemma 3 weights from HuggingFace format to OpenPI format."""
-        try:
-            from huggingface_hub import hf_hub_download
-            from safetensors import safe_open
-        except ImportError:
+        if not HF_AVAILABLE:
             raise ImportError(
                 "Please install huggingface_hub and safetensors: "
                 "pip install huggingface_hub safetensors"
             )
 
         # Download the safetensors files
-        logger.info("Downloading Gemma 3 model files...")
+        logger.info(f"Downloading Gemma 3 model files from {self.hf_model_id}...")
         model_files = []
+
+        # Try single file first
         try:
-            # Try single file first
             model_path = hf_hub_download(
                 repo_id=self.hf_model_id,
                 filename="model.safetensors",
             )
             model_files = [model_path]
-        except Exception:
-            # Fall back to sharded files
-            for i in range(1, 10):  # Gemma 3 4B typically has 2-4 shards
-                try:
-                    shard_path = hf_hub_download(
-                        repo_id=self.hf_model_id,
-                        filename=f"model-{i:05d}-of-*.safetensors",
-                    )
-                    model_files.append(shard_path)
-                except Exception:
-                    break
+            logger.info("Found single model.safetensors file")
+        except Exception as e:
+            logger.info(f"No single model file found ({e}), trying sharded files...")
 
-            if not model_files:
-                # Try indexed shards
-                import glob
-                from huggingface_hub import snapshot_download
-                cache_dir = snapshot_download(repo_id=self.hf_model_id, allow_patterns="*.safetensors")
-                model_files = glob.glob(f"{cache_dir}/*.safetensors")
+            # Use snapshot_download to get all safetensors files (handles sharding automatically)
+            try:
+                cache_dir = snapshot_download(
+                    repo_id=self.hf_model_id,
+                    allow_patterns="*.safetensors"
+                )
+                model_files = sorted(glob.glob(f"{cache_dir}/*.safetensors"))
+                logger.info(f"Found {len(model_files)} safetensors files")
+            except Exception as download_error:
+                raise RuntimeError(
+                    f"Failed to download model weights from {self.hf_model_id}: {download_error}"
+                ) from download_error
+
+        if not model_files:
+            raise RuntimeError(f"No safetensors files found for {self.hf_model_id}")
 
         # Load all weights
         hf_weights = {}
         for model_path in model_files:
+            logger.info(f"Loading weights from {model_path}")
             with safe_open(model_path, framework="numpy") as f:
                 for key in f.keys():
                     hf_weights[key] = f.get_tensor(key)
+
+        logger.info(f"Loaded {len(hf_weights)} weight tensors")
 
         # Convert HuggingFace format to OpenPI format
         return self._convert_hf_to_openpi(hf_weights)
