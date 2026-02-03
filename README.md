@@ -1,4 +1,4 @@
-# OpenPI - VLA Fine-Tuning Repository
+# FLA - Finetune VLAs
 
 **Fine-tune Vision-Language-Action models on any robotics dataset.**
 
