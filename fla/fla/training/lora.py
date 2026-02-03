@@ -57,6 +57,9 @@ class LoRAConfig:
         apply_to_action_expert: If True, apply LoRA to action expert
         rslora: Use rank-stabilized LoRA (rsLoRA) for better training
         init_scale: Initialization scale for LoRA-A matrix
+
+    Raises:
+        ValueError: If configuration values are invalid.
     """
 
     rank: int = 16
@@ -67,6 +70,19 @@ class LoRAConfig:
     apply_to_action_expert: bool = True
     rslora: bool = True
     init_scale: float = 0.01
+
+    def __post_init__(self):
+        """Validate configuration."""
+        if self.rank < 1:
+            raise ValueError(f"rank must be >= 1, got {self.rank}")
+        if self.alpha <= 0:
+            raise ValueError(f"alpha must be > 0, got {self.alpha}")
+        if not 0.0 <= self.dropout < 1.0:
+            raise ValueError(f"dropout must be in [0, 1), got {self.dropout}")
+        if self.init_scale <= 0:
+            raise ValueError(f"init_scale must be > 0, got {self.init_scale}")
+        if not self.apply_to_vlm and not self.apply_to_action_expert:
+            logger.warning("Neither apply_to_vlm nor apply_to_action_expert is True. No LoRA will be applied.")
 
 
 @dataclasses.dataclass

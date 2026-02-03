@@ -96,6 +96,21 @@ class ReinFlowConfig:
     flow_steps: int = 10
     use_advantage_normalization: bool = True
 
+    def __post_init__(self):
+        """Validate configuration."""
+        if self.learning_rate <= 0:
+            raise ValueError(f"learning_rate must be > 0, got {self.learning_rate}")
+        if not 0.0 <= self.gamma <= 1.0:
+            raise ValueError(f"gamma must be in [0, 1], got {self.gamma}")
+        if not 0.0 <= self.gae_lambda <= 1.0:
+            raise ValueError(f"gae_lambda must be in [0, 1], got {self.gae_lambda}")
+        if not 0.0 < self.clip_ratio < 1.0:
+            raise ValueError(f"clip_ratio must be in (0, 1), got {self.clip_ratio}")
+        if self.num_updates_per_rollout < 1:
+            raise ValueError(f"num_updates_per_rollout must be >= 1, got {self.num_updates_per_rollout}")
+        if self.flow_steps < 1:
+            raise ValueError(f"flow_steps must be >= 1, got {self.flow_steps}")
+
 
 # Type aliases
 Reward = at.Float[at.Array, "*b"]
