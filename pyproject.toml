@@ -44,6 +44,9 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/Physical-Intelligence/openpi"
 
+[project.scripts]
+fla-benchmark = "fla.benchmarks.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.4",
@@ -58,6 +61,15 @@ rlds = [
     "dlimp",
     "tensorflow-cpu==2.15.0",
     "tensorflow-datasets==4.9.9",
+]
+libero = [
+    "libero",
+    "robosuite>=1.4.1",
+    "mujoco>=3.2.3",
+    "pynput>=1.7.7",
+    "imageio-ffmpeg>=0.5.1",
+    "matplotlib>=3.10.0",
+    "scipy>=1.10.1",
 ]
 
 [tool.uv]

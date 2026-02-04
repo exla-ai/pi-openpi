@@ -229,6 +229,87 @@ If Isaac Lab isn’t installed, `scripts/isaaclab_data_collection.py` will fall 
 
 **Overlap note:** If your fine‑tuning dataset overlaps with pretraining (same robot/task distribution), gains may be smaller. Fresh data or a held‑out split yields clearer improvements.
 
+### Benchmark Evaluation (ALOHA Sim)
+
+Use the built-in benchmark runner to evaluate checkpoints on standard ALOHA sim tasks:
+
+```bash
+fla-benchmark \
+  --suite aloha_sim \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --num-episodes 50 \
+  --output evaluation_results.json
+```
+
+Run a single task:
+
+```bash
+fla-benchmark \
+  --suite aloha_sim \
+  --task gym_aloha/AlohaTransferCube-v0 \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --num-episodes 50
+```
+
+Note: `gym-aloha` is required for these tasks (installed by default via `pyproject.toml`).
+
+### Benchmark Evaluation (LIBERO)
+
+Install LIBERO dependencies and run evaluation locally:
+
+```bash
+uv sync --group libero
+
+fla-benchmark \
+  --suite libero \
+  --libero-suite libero_spatial \
+  --checkpoint-dir ./checkpoints/pi05_libero/pi05_libero_v1/30000 \
+  --config pi05_libero \
+  --libero-num-trials 50
+```
+
+### Dataset Evaluation (Offline)
+
+Evaluate action prediction error on a LeRobot dataset (works for DROID, ALOHA, LIBERO, etc.):
+
+```bash
+fla-benchmark \
+  --suite dataset \
+  --checkpoint-dir ./checkpoints/your_config/your_exp/30000 \
+  --config your_config \
+  --repo-ids your-org/your_dataset \
+  --max-samples 1024
+```
+
+If you used a recipe-based fine‑tune, you can evaluate without a config file by passing `--recipe`:
+
+```bash
+fla-benchmark \
+  --suite dataset \
+  --checkpoint-dir ./checkpoints/pi0_frozen_backbone/isaaclab_demo/4 \
+  --recipe pi0_frozen_backbone \
+  --repo-ids your-org/your_dataset \
+  --default-prompt "Complete the task" \
+  --model-action-dim 9 \
+  --model-action-horizon 20 \
+  --max-samples 1024
+```
+
+### Full Suite
+
+Run ALOHA + LIBERO + dataset eval in one go:
+
+```bash
+fla-benchmark \
+  --suite full \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --repo-ids lerobot/droid_1.0.1 \
+  --output evaluation_results.json
+```
+
 ### Core Algorithm: Flow Matching
 
 The Pi0 model uses **flow matching** for action generation:

@@ -4,6 +4,104 @@ This document explains how to evaluate trained models on benchmark tasks.
 
 ## Quick Start
 
+### Local CLI (no Docker)
+
+If you have `gym-aloha` installed locally, the easiest way to run benchmarks is:
+
+```bash
+fla-benchmark \
+  --suite aloha_sim \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --num-episodes 50 \
+  --output evaluation_results.json
+```
+
+To run a single task:
+
+```bash
+fla-benchmark \
+  --suite aloha_sim \
+  --task gym_aloha/AlohaTransferCube-v0 \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --num-episodes 50
+```
+
+### LIBERO (local)
+
+Install LIBERO dependencies:
+
+```bash
+uv sync --group libero
+```
+
+Run evaluation:
+
+```bash
+fla-benchmark \
+  --suite libero \
+  --libero-suite libero_spatial \
+  --checkpoint-dir ./checkpoints/pi05_libero/pi05_libero_v1/30000 \
+  --config pi05_libero \
+  --libero-num-trials 50
+```
+
+### Dataset Evaluation (offline)
+
+Evaluate action prediction error on a LeRobot dataset:
+
+```bash
+fla-benchmark \
+  --suite dataset \
+  --checkpoint-dir ./checkpoints/your_config/your_exp/30000 \
+  --config your_config \
+  --repo-ids your-org/your_dataset \
+  --max-samples 1024
+```
+
+Recipe-based evaluation (no config file needed):
+
+```bash
+fla-benchmark \
+  --suite dataset \
+  --checkpoint-dir ./checkpoints/pi0_frozen_backbone/isaaclab_demo/4 \
+  --recipe pi0_frozen_backbone \
+  --repo-ids your-org/your_dataset \
+  --default-prompt "Complete the task" \
+  --model-action-dim 9 \
+  --model-action-horizon 20 \
+  --max-samples 1024
+```
+
+### DROID Manual Evaluation (real robot)
+
+Launch the interactive DROID evaluation script (requires DROID robot setup):
+
+```bash
+fla-benchmark \
+  --suite droid_manual \
+  --droid-left-camera-id 24259877 \
+  --droid-right-camera-id 24514023 \
+  --droid-wrist-camera-id 13062452 \
+  --droid-external-camera left \
+  --droid-remote-host 192.168.1.100 \
+  --droid-remote-port 8000
+```
+
+### Full Suite
+
+Run ALOHA + LIBERO + dataset eval in one command:
+
+```bash
+fla-benchmark \
+  --suite full \
+  --checkpoint-dir ./checkpoints/pi06_multi/pi06_multi_v1/30000 \
+  --config pi06_multi \
+  --repo-ids your-org/your_dataset \
+  --output evaluation_results.json
+```
+
 ### 1. Start the Policy Server
 
 ```bash
