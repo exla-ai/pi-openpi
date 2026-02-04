@@ -6,7 +6,7 @@ import pytest
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 
-from openpi.training import config as _config
+from fla.training import config as _config
 
 from . import train
 

@@ -1,7 +1,7 @@
 
-# Running openpi models remotely
+# Running FLA models remotely
 
-We provide utilities for running openpi models remotely. This is useful for running inference on more powerful GPUs off-robot, and also helps keep the robot and policy environments separate (and e.g. avoid dependency hell with robot software).
+We provide utilities for running FLA models remotely. This is useful for running inference on more powerful GPUs off-robot, and also helps keep the robot and policy environments separate (and e.g. avoid dependency hell with robot software).
 
 ## Starting a remote policy server
 

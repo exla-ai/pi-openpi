@@ -96,7 +96,7 @@ Examples:
       --prompts "Pick and place the object" "Pour water into the glass" \\
       --action_dim 7
 
-After generating, paste the config into src/openpi/training/config.py
+After generating, paste the config into src/fla/training/config.py
 """,
     )
 
@@ -119,12 +119,12 @@ After generating, paste the config into src/openpi/training/config.py
     )
 
     print("=" * 60)
-    print("Generated Config (paste into src/openpi/training/config.py)")
+    print("Generated Config (paste into src/fla/training/config.py)")
     print("=" * 60)
     print(config)
     print("=" * 60)
     print("\nNext steps:")
-    print(f"1. Paste the config into src/openpi/training/config.py")
+    print(f"1. Paste the config into src/fla/training/config.py")
     print(f"2. Run: python scripts/compute_norm_stats.py {args.name}")
     print(f"3. Run: python scripts/train.py {args.name} --exp-name v1")
 

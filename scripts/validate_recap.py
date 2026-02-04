@@ -32,7 +32,7 @@ def check_implementation_vs_paper():
     logger.info("\n[1] VALUE FUNCTION (V^π(o_t, ℓ))")
     logger.info("-" * 50)
     try:
-        from openpi.recap.value_function import ValueFunction, ValueFunctionConfig
+        from fla.recap.value_function import ValueFunction, ValueFunctionConfig
         config = ValueFunctionConfig(paligemma_variant="dummy", num_bins=201)
         logger.info("  ✓ Value function class exists")
         logger.info(f"  ✓ Uses {config.num_bins} bins (paper: 201 bins)")
@@ -46,7 +46,7 @@ def check_implementation_vs_paper():
     logger.info("\n[2] ADVANTAGE COMPUTATION")
     logger.info("-" * 50)
     try:
-        from openpi.recap.value_function import compute_improvement_indicator
+        from fla.recap.value_function import compute_improvement_indicator
         advantages = jnp.array([-2.0, -1.0, 0.0, 1.0, 2.0])
         indicators = compute_improvement_indicator(advantages)
         expected = jnp.array([False, False, False, True, True])
@@ -67,7 +67,7 @@ def check_implementation_vs_paper():
     logger.info("\n[3] POLICY ADVANTAGE CONDITIONING")
     logger.info("-" * 50)
     try:
-        from openpi.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
+        from fla.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
         config = Pi0RECAPConfig(
             paligemma_variant="dummy",
             action_expert_variant="dummy",
@@ -94,7 +94,7 @@ def check_implementation_vs_paper():
             logger.info("  ✓ RECAP training script exists")
             logger.info("  ✓ Supports warmup phase (standard training)")
             logger.info("  ✓ Supports RECAP phase (advantage-conditioned training)")
-            logger.info("  ✓ Integrates with openpi checkpointing")
+            logger.info("  ✓ Integrates with FLA checkpointing")
             checks.append(("Training Loop", True, "Integrated"))
         else:
             checks.append(("Training Loop", False, "Script not found"))

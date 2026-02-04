@@ -123,7 +123,7 @@ def test_data_loading(hdf5_path):
     logger.info("TEST 2: Data Loading")
     logger.info("=" * 60)
 
-    from openpi.recap.isaaclab_data import IsaacLabDataset, RECAPDataLoader
+    from fla.recap.isaaclab_data import IsaacLabDataset, RECAPDataLoader
 
     # Load dataset
     dataset = IsaacLabDataset(
@@ -192,7 +192,7 @@ def test_value_function_training(dataset):
     logger.info("=" * 60)
 
     import jax
-    from openpi.recap.value_function import ValueFunctionConfig
+    from fla.recap.value_function import ValueFunctionConfig
 
     # Create value function with dummy model
     config = ValueFunctionConfig(
@@ -218,7 +218,7 @@ def test_policy_training(dataset):
     logger.info("=" * 60)
 
     import jax
-    from openpi.recap.pi0_recap import Pi0RECAPConfig
+    from fla.recap.pi0_recap import Pi0RECAPConfig
 
     # Create policy with dummy model
     config = Pi0RECAPConfig(

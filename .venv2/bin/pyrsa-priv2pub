@@ -1,0 +1,6 @@
+#!/lambda/nfs/utah/pi-openpi/.venv2/bin/python
+import sys
+from rsa.util import private_to_public
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(private_to_public())

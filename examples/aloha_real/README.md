@@ -121,6 +121,6 @@ This task involves opening a tupperware filled with food and pouring the content
 
 2. Define a training config that uses the custom dataset.
 
-    We provide the [pi0_aloha_pen_uncap config](../../src/openpi/training/config.py) as an example. You should refer to the root [README](../../README.md) for how to run training with the new config.
+    We provide the [pi0_aloha_pen_uncap config](../../src/fla/training/config.py) as an example. You should refer to the root [README](../../README.md) for how to run training with the new config.
 
 IMPORTANT: Our base checkpoint includes normalization stats from various common robot configurations. When fine-tuning a base checkpoint with a custom dataset from one of these configurations, we recommend using the corresponding normalization stats provided in the base checkpoint. In the example, this is done by specifying the trossen asset_id and a path to the pretrained checkpoint’s asset directory within the AssetsConfig.

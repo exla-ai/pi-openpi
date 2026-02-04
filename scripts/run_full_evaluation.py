@@ -66,8 +66,8 @@ OPTIONAL_TASKS = [
 
 def create_policy(checkpoint_dir: str, config_name: str):
     """Create a policy from a checkpoint."""
-    from openpi.policies import policy_config as _policy_config
-    from openpi.training import config as _config
+    from fla.policies import policy_config as _policy_config
+    from fla.training import config as _config
 
     logger.info(f"Loading config: {config_name}")
     train_config = _config.get_config(config_name)

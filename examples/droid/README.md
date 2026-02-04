@@ -1,4 +1,4 @@
-# DROID Policies in openpi
+# DROID Policies in FLA
 
 We offer instructions for:
 - [Running inference for our best $pi_{0.5}$-DROID policy](./README.md#running-droid-inference)
@@ -15,8 +15,8 @@ This example shows how to run the fine-tuned $\pi_{0.5}$-DROID model on the [DRO
 
 Since the DROID control laptop does not have a powerful GPU, we will start a remote policy server on a different machine with a more powerful GPU and then query it from the DROID control laptop during inference.
 
-1. On a machine with a powerful GPU (~NVIDIA 4090), clone and install the `openpi` repository following the instructions in the [README](https://github.com/Physical-Intelligence/openpi).
-2. Start the OpenPI server via the following command:
+1. On a machine with a powerful GPU (~NVIDIA 4090), clone and install the FLA repository following the instructions in the root README.
+2. Start the FLA server via the following command:
 
 ```bash
 uv run scripts/serve_policy.py policy:checkpoint --policy.config=pi05_droid --policy.dir=gs://openpi-assets/checkpoints/pi05_droid
@@ -32,7 +32,7 @@ uv run scripts/serve_policy.py --env=DROID
 
 1. Make sure you have the most recent version of the DROID package installed on both the DROID control laptop and the NUC.
 2. On the control laptop, activate your DROID conda environment.
-3. Clone the openpi repo and install the openpi client, which we will use to connect to the policy server (this has very few dependencies and should be very fast to install): with the DROID conda environment activated, run `cd $OPENPI_ROOT/packages/openpi-client && pip install -e .`.
+3. Install the openpi client (for remote inference) from `packages/openpi-client`: `cd $OPENPI_ROOT/packages/openpi-client && pip install -e .`.
 4. Install `tyro`, which we will use for command line parsing: `pip install tyro`.
 5. Copy the `main.py` file from this directory to the `$DROID_ROOT/scripts` directory.
 6. Replace the camera IDs in the `main.py` file with the IDs of your cameras (you can find the camera IDs by running `ZED_Explorer` in the command line, which will open a tool that shows you all connected cameras and their IDs -- you can also use it to make sure that the cameras are well-positioned to see the scene you want the robot to interact with).
@@ -81,4 +81,4 @@ uv run scripts/serve_policy.py policy:checkpoint --policy.config=paligemma_vq_dr
 uv run scripts/serve_policy.py policy:checkpoint --policy.config=paligemma_diffusion_droid --policy.dir=gs://openpi-assets/checkpoints/roboarena/paligemma_diffusion_droid
 ```
 
-You can find the inference configs in [roboarena_config.py](../../src/openpi/training/misc/roboarena_config.py).
+You can find the inference configs in [roboarena_config.py](../../src/fla/training/misc/roboarena_config.py).

@@ -21,12 +21,12 @@ import pathlib
 import jax
 import flax.nnx as nnx
 
-import openpi.training.config as _config
-import openpi.training.checkpoints as _checkpoints
-import openpi.training.continual_learning as _continual_learning
-import openpi.training.data_loader as _data_loader
-import openpi.training.sharding as sharding
-import openpi.training.utils as training_utils
+import fla.training.config as _config
+import fla.training.checkpoints as _checkpoints
+import fla.training.continual_learning as _continual_learning
+import fla.training.data_loader as _data_loader
+import fla.training.sharding as sharding
+import fla.training.utils as training_utils
 
 
 def init_logging():
@@ -107,8 +107,8 @@ on new tasks with --continual_learning.ewc.enabled=True
     rng = jax.random.key(config.seed)
     _, init_rng = jax.random.split(rng)
 
-    from openpi.training.optimizer import create_optimizer
-    from openpi.training.weight_loaders import NoOpWeightLoader
+    from fla.training.optimizer import create_optimizer
+    from fla.training.weight_loaders import NoOpWeightLoader
 
     # Create model to get state shape
     def init_model(rng):

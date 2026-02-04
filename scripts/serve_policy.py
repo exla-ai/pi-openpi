@@ -5,10 +5,10 @@ import socket
 
 import tyro
 
-from openpi.policies import policy as _policy
-from openpi.policies import policy_config as _policy_config
-from openpi.serving import websocket_policy_server
-from openpi.training import config as _config
+from fla.policies import policy as _policy
+from fla.policies import policy_config as _policy_config
+from fla.serving import websocket_policy_server
+from fla.training import config as _config
 
 
 class EnvMode(enum.Enum):

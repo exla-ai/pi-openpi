@@ -34,11 +34,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, os.path.join(PROJECT_DIR, "src"))
 
-from openpi.models.model import Observation
-from openpi.recap.value_function import ValueFunctionConfig
-from openpi.recap.pi0_recap import Pi0RECAPConfig
-import openpi.training.sharding as sharding
-import openpi.shared.array_typing as at
+from fla.models.model import Observation
+from fla.recap.value_function import ValueFunctionConfig
+from fla.recap.pi0_recap import Pi0RECAPConfig
+import fla.training.sharding as sharding
+import fla.shared.array_typing as at
 
 # Setup logging
 logging.basicConfig(
@@ -82,7 +82,7 @@ class RECAPConfig:
 
     # Logging
     log_interval: int = 10
-    wandb_project: str = "openpi"
+    wandb_project: str = "fla"
 
     # Misc
     seed: int = 42

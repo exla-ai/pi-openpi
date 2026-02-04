@@ -17,13 +17,13 @@ Usage:
 
 Example:
     # pi0_droid
-    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi0_droid --output_path /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi0_droid_pytorch
+    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/fla/openpi-assets/checkpoints/pi0_droid --output_path /home/$USER/.cache/fla/openpi-assets/checkpoints/pi0_droid_pytorch
 
     # pi0_aloha_sim
-    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim --output_path /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim_pytorch
+    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/fla/openpi-assets/checkpoints/pi0_aloha_sim --output_path /home/$USER/.cache/fla/openpi-assets/checkpoints/pi0_aloha_sim_pytorch
 
     # pi05_droid
-    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi05_droid --output_path /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi05_droid_pytorch
+    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/fla/openpi-assets/checkpoints/pi05_droid --output_path /home/$USER/.cache/fla/openpi-assets/checkpoints/pi05_droid_pytorch
 """
 
 import json
@@ -39,12 +39,12 @@ import safetensors
 import torch
 import tyro
 
-import openpi.models.gemma
-import openpi.models.model
-import openpi.models.pi0_config
-import openpi.models_pytorch.pi0_pytorch
-from openpi.training import utils
-import openpi.training.config as _config
+import fla.models.gemma
+import fla.models.model
+import fla.models.pi0_config
+import fla.models_pytorch.pi0_pytorch
+from fla.training import utils
+import fla.training.config as _config
 
 
 def slice_paligemma_state_dict(state_dict, config):
@@ -398,7 +398,7 @@ def slice_initial_orbax_checkpoint(checkpoint_dir: str, restore_precision: str |
     This respects dtype conversions that occur during model restore.
     """
     # Use repository restore utility to load a pure dict of params (value suffix removed)
-    params = openpi.models.model.restore_params(
+    params = fla.models.model.restore_params(
         f"{checkpoint_dir}/params/", restore_type=np.ndarray, dtype=restore_precision
     )
 
@@ -420,7 +420,7 @@ def load_jax_model_and_print_keys(checkpoint_dir: str):
 
 
 def convert_pi0_checkpoint(
-    checkpoint_dir: str, precision: str, output_path: str, model_config: openpi.models.pi0_config.Pi0Config
+    checkpoint_dir: str, precision: str, output_path: str, model_config: fla.models.pi0_config.Pi0Config
 ):
     """
     Convert PI0 JAX checkpoint to PyTorch format.
@@ -500,7 +500,7 @@ def convert_pi0_checkpoint(
             )()
 
     paligemma_config = PaliGemmaConfig()
-    action_expert_config = openpi.models.gemma.get_config("gemma_300m")
+    action_expert_config = fla.models.gemma.get_config("gemma_300m")
 
     # Process PaliGemma weights
     paligemma_params, expert_params = slice_paligemma_state_dict(initial_params["paligemma_params"], paligemma_config)
@@ -511,7 +511,7 @@ def convert_pi0_checkpoint(
     )
 
     # Instantiate model
-    pi0_model = openpi.models_pytorch.pi0_pytorch.PI0Pytorch(model_config)
+    pi0_model = fla.models_pytorch.pi0_pytorch.PI0Pytorch(model_config)
 
     # Combine all parameters (no prefix needed for our model structure)
     all_params = {**paligemma_params, **gemma_params, **projection_params}
@@ -572,7 +572,7 @@ def main(
         inspect_only: Only inspect parameter keys, don't convert
     """
     model_config = _config.get_config(config_name).model
-    if not isinstance(model_config, openpi.models.pi0_config.Pi0Config):
+    if not isinstance(model_config, fla.models.pi0_config.Pi0Config):
         raise ValueError(f"Config {config_name} is not a Pi0Config")
     if inspect_only:
         load_jax_model_and_print_keys(checkpoint_dir)

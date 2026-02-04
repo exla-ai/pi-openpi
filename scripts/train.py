@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import logging
+import os
 import platform
 from typing import Any
 
@@ -16,17 +17,21 @@ import optax
 import tqdm_loggable.auto as tqdm
 import wandb
 
-import openpi.models.model as _model
-import openpi.shared.array_typing as at
-import openpi.shared.nnx_utils as nnx_utils
-import openpi.training.checkpoints as _checkpoints
-import openpi.training.config as _config
-import openpi.training.continual_learning as _continual_learning
-import openpi.training.data_loader as _data_loader
-import openpi.training.optimizer as _optimizer
-import openpi.training.sharding as sharding
-import openpi.training.utils as training_utils
-import openpi.training.weight_loaders as _weight_loaders
+import fla.models.model as _model
+import fla.shared.array_typing as at
+import fla.shared.nnx_utils as nnx_utils
+import fla.training.checkpoints as _checkpoints
+import fla.training.config as _config
+import fla.training.continual_learning as _continual_learning
+import fla.training.data_loader as _data_loader
+import fla.training.optimizer as _optimizer
+import fla.training.sharding as sharding
+import fla.training.utils as training_utils
+import fla.training.weight_loaders as _weight_loaders
+
+
+if os.getenv("FLA_DISABLE_TYPECHECK", "0") == "1":
+    at.config.update("jaxtyping_disable", True)
 
 
 def init_logging():

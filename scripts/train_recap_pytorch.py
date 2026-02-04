@@ -45,14 +45,14 @@ SCRIPT_DIR = pathlib.Path(__file__).parent.absolute()
 PROJECT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_DIR / "src"))
 
-import openpi.models.gemma as _gemma
-from openpi.models_pytorch.pi0_pytorch import PI0Pytorch
-from openpi.models_pytorch.value_function_pytorch import (
+import fla.models.gemma as _gemma
+from fla.models_pytorch.pi0_pytorch import PI0Pytorch
+from fla.models_pytorch.value_function_pytorch import (
     ValueFunctionPytorch,
     ValueFunctionPytorchConfig,
     compute_improvement_indicator,
 )
-import openpi.models.pi0_config as _pi0_config
+import fla.models.pi0_config as _pi0_config
 
 
 class SimpleObservation:
@@ -162,7 +162,7 @@ class RECAPConfig:
     output_dir: str = str(PROJECT_DIR / "checkpoints" / "recap_pytorch")
 
     # Logging
-    wandb_project: str = "openpi"
+    wandb_project: str = "fla"
     wandb_enabled: bool = True
     log_interval: int = 50
 

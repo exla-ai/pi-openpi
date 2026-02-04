@@ -156,7 +156,7 @@ def train_value_function(args, dataset, rng):
     import jax
     import jax.numpy as jnp
     from flax import nnx
-    from openpi.recap.value_function import ValueFunctionConfig
+    from fla.recap.value_function import ValueFunctionConfig
 
     logger.info("=" * 60)
     logger.info("PHASE 1: Training Value Function")
@@ -213,7 +213,7 @@ def train_policy(args, dataset, value_fn, rng):
     import jax
     import jax.numpy as jnp
     from flax import nnx
-    from openpi.recap.pi0_recap import Pi0RECAPConfig
+    from fla.recap.pi0_recap import Pi0RECAPConfig
 
     logger.info("=" * 60)
     logger.info("PHASE 3: Training Policy")
@@ -268,7 +268,7 @@ def main():
     if args.use_fake_data or args.data_path is None:
         dataset = create_fake_dataset(args)
     else:
-        from openpi.recap.isaaclab_data import create_recap_dataset
+        from fla.recap.isaaclab_data import create_recap_dataset
         dataset = create_recap_dataset(
             data_path=args.data_path,
             action_chunk_size=args.action_horizon,

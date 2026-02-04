@@ -40,7 +40,7 @@ from flax import nnx
 import optax
 import orbax.checkpoint as ocp
 
-from openpi.models.model import Observation
+from fla.models.model import Observation
 
 # Check devices
 logger.info(f"JAX devices: {jax.devices()}")
@@ -74,7 +74,7 @@ class RECAPFullConfig:
 
     # Logging
     use_wandb: bool = True
-    wandb_project: str = "openpi"
+    wandb_project: str = "fla"
 
     # Misc
     seed: int = 42
@@ -238,7 +238,7 @@ class LeRobotRECAPDataset:
 
 def create_value_function(config: RECAPFullConfig, rng: jax.Array):
     """Create and initialize the value function."""
-    from openpi.recap.value_function import ValueFunctionConfig
+    from fla.recap.value_function import ValueFunctionConfig
 
     value_config = ValueFunctionConfig(
         paligemma_variant=config.model_variant,
@@ -254,7 +254,7 @@ def create_value_function(config: RECAPFullConfig, rng: jax.Array):
 
 def create_policy(config: RECAPFullConfig, rng: jax.Array):
     """Create and initialize the RECAP policy."""
-    from openpi.recap.pi0_recap import Pi0RECAPConfig
+    from fla.recap.pi0_recap import Pi0RECAPConfig
 
     policy_config = Pi0RECAPConfig(
         paligemma_variant=config.model_variant,

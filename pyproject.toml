@@ -1,7 +1,7 @@
 [project]
-name = "openpi"
+name = "fla"
 version = "0.1.0"
-description = "Physical Intelligence open source repo"
+description = "FLA - Finetune VLAs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -74,7 +74,7 @@ members = ["packages/*"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["docker", "third_party", "src/openpi/models_pytorch/transformers_replace/*"]
+extend-exclude = ["docker", "third_party", "src/fla/models_pytorch/transformers_replace/*"]
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/

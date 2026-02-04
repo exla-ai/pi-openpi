@@ -8,9 +8,9 @@ import sys
 sys.path.insert(0, "src")
 
 print("Testing imports...")
-from openpi.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
-from openpi.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
-from openpi.recap.trainer import RECAPTrainer, RECAPConfig
+from fla.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
+from fla.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
+from fla.recap.trainer import RECAPTrainer, RECAPConfig
 
 print("All imports successful!")
 

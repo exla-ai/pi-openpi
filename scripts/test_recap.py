@@ -20,9 +20,9 @@ import flax.nnx as nnx
 # Add src to path
 sys.path.insert(0, "src")
 
-from openpi.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
-from openpi.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
-from openpi.models import model as _model
+from fla.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
+from fla.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
+from fla.models import model as _model
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)

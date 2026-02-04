@@ -46,7 +46,7 @@ tags:
 datasets:
 {datasets}
 pipeline_tag: robotics
-library_name: openpi
+library_name: fla
 ---
 
 # {model_name}
@@ -55,7 +55,7 @@ library_name: openpi
 
 ## Model Description
 
-Pi0.6 is a Vision-Language-Action (VLA) model for robot manipulation built on the [OpenPI](https://github.com/Physical-Intelligence/openpi) framework.
+Pi0.6 is a Vision-Language-Action (VLA) model for robot manipulation built on the FLA framework.
 
 ### Architecture
 
@@ -72,8 +72,8 @@ Pi0.6 is a Vision-Language-Action (VLA) model for robot manipulation built on th
 ## Usage
 
 ```python
-from openpi.policies import policy_config
-from openpi.training import config
+from fla.policies import policy_config
+from fla.training import config
 
 # Load the policy
 config = policy_config.get_policy_config("{config_name}")
@@ -83,7 +83,7 @@ policy = config.create_policy()
 action = policy(observation)
 ```
 
-### With OpenPI Server
+### With FLA Server
 
 ```bash
 # Start server
@@ -349,7 +349,7 @@ def upload_to_huggingface(
                 "action_expert": "gemma_300m",
                 "vision_encoder": "siglip",
             },
-            "framework": "openpi",
+            "framework": "fla",
         }
 
         import json
@@ -385,7 +385,7 @@ def main():
                         choices=["comprehensive", "aloha_sim", "libero", "recap"],
                         help="Model variant for documentation")
     parser.add_argument("--config_name", type=str, default="pi06_comprehensive",
-                        help="OpenPI config name")
+                        help="FLA config name")
     parser.add_argument("--env_name", type=str, default="aloha_sim",
                         help="Environment name for usage examples")
     parser.add_argument("--private", action="store_true",

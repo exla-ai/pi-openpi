@@ -44,7 +44,7 @@ class Args:
     # Remote server parameters
     remote_host: str = "0.0.0.0"  # point this to the IP address of the policy server, e.g., "192.168.1.100"
     remote_port: int = (
-        8000  # point this to the port of the policy server, default server port for openpi servers is 8000
+        8000  # point this to the port of the policy server, default server port for FLA servers is 8000
     )
 
 

@@ -94,8 +94,8 @@ export RECAP_NUM_ENVS=16
 ### Running Data Collection
 
 ```bash
-# From the openpi directory
-cd /path/to/openpi
+# From the FLA directory
+cd /path/to/fla
 
 # Collect data with random policy (initial exploration)
 python scripts/isaaclab_data_collection.py \

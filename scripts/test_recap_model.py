@@ -14,9 +14,9 @@ import jax.numpy as jnp
 logger.info(f"JAX devices: {jax.devices()}")
 
 # Import RECAP modules
-from openpi.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
-from openpi.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
-from openpi.models import model as _model
+from fla.recap.value_function import ValueFunction, ValueFunctionConfig, compute_improvement_indicator
+from fla.recap.pi0_recap import Pi0RECAP, Pi0RECAPConfig
+from fla.models import model as _model
 
 def create_fake_observation(batch_size: int = 2) -> _model.Observation:
     """Create a fake observation for testing."""

@@ -17,6 +17,22 @@ This repository provides infrastructure for fine-tuning [Physical Intelligence's
 
 ---
 
+## VLA Fine-Tuning Methods (Research & Open-Source)
+
+| Method | Key Idea | Action Representation | Compute Footprint | Reference | FLA Support |
+|--------|----------|-----------------------|-------------------|-----------|-------------|
+| **PEFT (LoRA/QLoRA)** | Parameter-efficient adapters for VLM/VLA fine-tuning | Model-specific | Low | [LoRA paper](https://arxiv.org/abs/2106.09685) | External |
+| **OpenVLA Full** | Full-parameter fine-tuning of OpenVLA | Discrete action tokens | High | [OpenVLA repo](https://github.com/openvla/openvla) | External |
+| **OpenVLA‑OFT** | Optimized fine-tuning: action chunking + continuous actions + L1 regression | Continuous actions | Medium | [OFT paper](https://arxiv.org/abs/2502.19645) • [OFT site](https://openvla-oft.github.io/) | External |
+| **Octo Fine‑Tuning** | Diffusion-policy fine-tuning for generalist robot policies | Diffusion actions | Medium | [Octo repo](https://github.com/octo-models/octo) | External |
+| **RT‑2 Co‑Fine‑Tuning** | Co-train on web VLM data + robot data, actions as text tokens | Action tokens | High | [RT‑2 project](https://robotics-transformer2.github.io/) | External |
+| **Knowledge Insulation (PI)** | Insulate VLM backbone while training action expert on continuous actions | Continuous actions | Medium | [Knowledge Insulation](https://www.physicalintelligence.company/research/knowledge_insulation) | Planned |
+
+**Legend:**  
+**Supported** = implemented in FLA • **Planned** = documented but not yet implemented • **External** = reference implementation elsewhere
+
+---
+
 ## Supported Datasets
 
 We support all major robotics datasets in [LeRobot format](https://huggingface.co/lerobot):
@@ -94,17 +110,124 @@ python scripts/convert_to_lerobot.py --input your_data/ --output lerobot_dataset
 # 2. Upload to HuggingFace (or use locally)
 huggingface-cli upload your-org/my-robot-dataset ./lerobot_dataset
 
-# 3. Add config pointing to your dataset (see Fine-Tuning Guide below)
+# 3. Fine-tune (recipe CLI)
+python scripts/finetune.py \
+  --recipe pi0_frozen_backbone \
+  --repo-ids your-org/my-robot-dataset \
+  --repo-id-to-prompt "your-org/my-robot-dataset:Pick up the red block" \
+  --action-dim 7 \
+  --exp-name v1
 
-# 4. Compute normalization stats
-python scripts/compute_norm_stats.py pi06_my_task
+# Optional: compute norm stats (advanced)
+# python scripts/compute_norm_stats.py <config_name>
 
-# 5. Train
-python scripts/train.py pi06_my_task --exp-name v1
-
-# 6. Deploy
+# 4. Deploy
 python scripts/serve_policy.py policy:checkpoint --policy.dir ./checkpoints/...
 ```
+
+### Recipe CLI (Recommended)
+
+```bash
+# List available recipes
+python scripts/finetune.py --list
+```
+
+Multi‑dataset fine‑tuning (each dataset gets its own prompt):
+
+```bash
+python scripts/finetune.py \
+  --recipe pi0_frozen_backbone \
+  --repo-ids your-org/isaac_franka_cabinet your-org/isaac_franka_lift \
+  --repo-id-to-prompt "your-org/isaac_franka_cabinet:Open the cabinet drawer" \
+  --repo-id-to-prompt "your-org/isaac_franka_lift:Lift the object" \
+  --action-dim 9 \
+  --exp-name multi_task_v1
+```
+
+Fine‑tuning different base models: set `--base-model pi0` or `--base-model pi05` and optionally pass `--checkpoint-path` to point at custom weights (e.g., `gs://openpi-assets/checkpoints/pi0_base/params` or `gs://openpi-assets/checkpoints/pi05_base/params`).
+
+Quick smoke test (no base checkpoint download):
+
+```bash
+python scripts/finetune.py \
+  --recipe pi0_frozen_backbone \
+  --init-from scratch \
+  --paligemma-variant gemma_300m \
+  --action-expert-variant gemma_300m \
+  --repo-ids your-org/my-robot-dataset \
+  --repo-id-to-prompt "your-org/my-robot-dataset:Pick up the red block" \
+  --action-dim 7 \
+  --exp-name smoke_test
+```
+
+Python API:
+
+```python
+from fla.finetune import build_train_config, RecipeOverrides
+
+config = build_train_config(
+    "pi0_frozen_backbone",
+    RecipeOverrides(
+        repo_ids=("your-org/my-robot-dataset",),
+        repo_id_to_prompt={"your-org/my-robot-dataset": "Pick up the red block"},
+        base_model="pi05",
+        action_dim=7,
+        exp_name="v1",
+    ),
+)
+```
+
+### Fresh Dataset Example (Isaac Lab → LeRobot)
+
+This example records **fresh** Isaac Lab trajectories so the fine‑tune data is guaranteed not to overlap with pretraining.
+
+```bash
+# 1) Collect two small, fresh datasets
+python scripts/isaaclab_data_collection.py \
+  --task Isaac-Franka-Cabinet-Direct-v0 \
+  --num_episodes 30 \
+  --dataset_name franka_cabinet \
+  --format numpy \
+  --output_dir data/isaaclab
+
+python scripts/isaaclab_data_collection.py \
+  --task Isaac-Lift-Franka-v0 \
+  --num_episodes 30 \
+  --dataset_name franka_lift \
+  --format numpy \
+  --output_dir data/isaaclab
+
+# 2) Convert to LeRobot format
+python scripts/isaaclab_to_lerobot.py \
+  --input-dir data/isaaclab/franka_cabinet_numpy \
+  --repo-id your-org/isaac_franka_cabinet \
+  --task "Open the cabinet drawer"
+
+python scripts/isaaclab_to_lerobot.py \
+  --input-dir data/isaaclab/franka_lift_numpy \
+  --repo-id your-org/isaac_franka_lift \
+  --task "Lift the object"
+
+# 3) Multi-dataset fine-tune
+python scripts/finetune.py \
+  --recipe pi0_frozen_backbone \
+  --repo-ids your-org/isaac_franka_cabinet your-org/isaac_franka_lift \
+  --repo-id-to-prompt "your-org/isaac_franka_cabinet:Open the cabinet drawer" \
+  --repo-id-to-prompt "your-org/isaac_franka_lift:Lift the object" \
+  --action-dim 9 \
+  --exp-name isaaclab_demo
+```
+
+Example training output (H100 smoke run):
+
+```text
+Step 0: grad_norm=15.5867, loss=3.1071, param_norm=829.2279, task_loss=3.1071
+...
+```
+
+If Isaac Lab isn’t installed, `scripts/isaaclab_data_collection.py` will fall back to a mock collector. For real trajectories, follow the setup in `docs/isaac_lab_setup.md`.
+
+**Overlap note:** If your fine‑tuning dataset overlaps with pretraining (same robot/task distribution), gains may be smaller. Fresh data or a held‑out split yields clearer improvements.
 
 ### Core Algorithm: Flow Matching
 
@@ -287,8 +410,8 @@ These are actual evaluation results from running the models in this repository:
 ### Option 1: Use Pre-trained Models (Recommended)
 
 ```python
-from openpi.training import config as _config
-from openpi.policies import policy_config
+from fla.training import config as _config
+from fla.policies import policy_config
 
 # Load Pi0.5 for LIBERO
 config = _config.get_config("pi05_libero")
@@ -394,16 +517,40 @@ The repo has been tested with Ubuntu 22.04, we do not currently support other op
 
 ## Installation
 
+FLA is a Python library. Install it into a virtual environment and import `fla` in your own training scripts, or use the included CLI scripts.
+
+### Option A: Install as a Python library (recommended)
+
+We use `uv` to manage Python dependencies (fast and reproducible). The simplest way to install FLA is directly from Git:
+
+```bash
+uv pip install "git+https://github.com/your-org/fla.git"
+```
+
+To pin to a tag or commit:
+
+```bash
+uv pip install "git+https://github.com/your-org/fla.git@v0.1.0"
+```
+
+Quick sanity check:
+
+```bash
+python -c "import fla; print('FLA import OK')"
+```
+
+### Option B: Clone for development
+
 When cloning this repo, make sure to update submodules:
 
 ```bash
-git clone --recurse-submodules git@github.com:Physical-Intelligence/openpi.git
+git clone --recurse-submodules https://github.com/your-org/fla.git
 
 # Or if you already cloned the repo:
 git submodule update --init --recursive
 ```
 
-We use [uv](https://docs.astral.sh/uv/) to manage Python dependencies. See the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/) to set it up. Once uv is installed, run the following to set up the environment:
+Then install the editable package using `uv`:
 
 ```bash
 GIT_LFS_SKIP_SMUDGE=1 uv sync
@@ -412,7 +559,9 @@ GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 
 NOTE: `GIT_LFS_SKIP_SMUDGE=1` is needed to pull LeRobot as a dependency.
 
-**Docker**: As an alternative to uv installation, we provide instructions for installing openpi using Docker. If you encounter issues with your system setup, consider using Docker to simplify installation. See [Docker Setup](docs/docker.md) for more details.
+### Option C: Docker
+
+As an alternative, we provide Docker-based setup instructions in `docs/docker.md`. This can simplify CUDA/driver mismatches on some systems.
 
 
 
@@ -443,7 +592,7 @@ We also provide "expert" checkpoints for various robot platforms and tasks. Thes
 | $\pi_{0.5}$-DROID      | Inference / Fine-Tuning | $\pi_{0.5}$ model fine-tuned on the [DROID dataset](https://droid-dataset.github.io/) with [knowledge insulation](https://www.physicalintelligence.company/research/knowledge_insulation): fast inference and good language-following | `gs://openpi-assets/checkpoints/pi05_droid`      |
 
 
-By default, checkpoints are automatically downloaded from `gs://openpi-assets` and are cached in `~/.cache/openpi` when needed. You can overwrite the download path by setting the `OPENPI_DATA_HOME` environment variable.
+By default, checkpoints are automatically downloaded from `gs://openpi-assets` and are cached in `~/.cache/fla` when needed. You can overwrite the download path by setting the `FLA_DATA_HOME` environment variable (or `OPENPI_DATA_HOME` for backward compatibility).
 
 
 ## Efficient Fine-Tuning with Frozen Backbone (pi06 configs)
@@ -666,11 +815,11 @@ python scripts/create_finetune_config.py \
     --prompts "Pick and place the object" "Pour water into the glass"
 ```
 
-Then paste the generated config into `src/openpi/training/config.py`.
+Then paste the generated config into `src/fla/training/config.py`.
 
 **Option B: Manually edit config.py**
 
-Edit `src/openpi/training/config.py` and copy the template:
+Edit `src/fla/training/config.py` and copy the template:
 
 ```python
 TrainConfig(
@@ -720,8 +869,8 @@ python scripts/train.py pi06_my_custom_task --exp-name my_experiment_v1
 ### Step 5: Run Inference
 
 ```python
-from openpi.training import config
-from openpi.policies import policy_config
+from fla.training import config
+from fla.policies import policy_config
 
 cfg = config.get_config("pi06_my_custom_task")
 policy = policy_config.create_trained_policy(
@@ -786,9 +935,9 @@ The model will learn to:
 
 Our pre-trained model checkpoints can be run with a few lines of code (here our $\pi_0$-FAST-DROID model):
 ```python
-from openpi.training import config as _config
-from openpi.policies import policy_config
-from openpi.shared import download
+from fla.training import config as _config
+from fla.policies import policy_config
+from fla.shared import download
 
 config = _config.get_config("pi05_droid")
 checkpoint_dir = download.maybe_download("gs://openpi-assets/checkpoints/pi05_droid")
@@ -838,11 +987,11 @@ uv run examples/libero/convert_libero_data_to_lerobot.py --data_dir /path/to/you
 
 To fine-tune a base model on your own data, you need to define configs for data processing and training. We provide example configs with detailed comments for LIBERO below, which you can modify for your own dataset:
 
-- [`LiberoInputs` and `LiberoOutputs`](src/openpi/policies/libero_policy.py): Defines the data mapping from the LIBERO environment to the model and vice versa. Will be used for both, training and inference.
-- [`LeRobotLiberoDataConfig`](src/openpi/training/config.py): Defines how to process raw LIBERO data from LeRobot dataset for training.
-- [`TrainConfig`](src/openpi/training/config.py): Defines fine-tuning hyperparameters, data config, and weight loader.
+- [`LiberoInputs` and `LiberoOutputs`](src/fla/policies/libero_policy.py): Defines the data mapping from the LIBERO environment to the model and vice versa. Will be used for both, training and inference.
+- [`LeRobotLiberoDataConfig`](src/fla/training/config.py): Defines how to process raw LIBERO data from LeRobot dataset for training.
+- [`TrainConfig`](src/fla/training/config.py): Defines fine-tuning hyperparameters, data config, and weight loader.
 
-We provide example fine-tuning configs for [π₀](src/openpi/training/config.py), [π₀-FAST](src/openpi/training/config.py), and [π₀.₅](src/openpi/training/config.py) on LIBERO data.
+We provide example fine-tuning configs for [π₀](src/fla/training/config.py), [π₀-FAST](src/fla/training/config.py), and [π₀.₅](src/fla/training/config.py) on LIBERO data.
 
 Before we can run training, we need to compute the normalization statistics for the training data. Run the script below with the name of your training config:
 
@@ -961,7 +1110,7 @@ uv run scripts/train.py pi06_new_tasks --exp-name=v1 \
 
 ## PyTorch Support
 
-openpi now provides PyTorch implementations of π₀ and π₀.₅ models alongside the original JAX versions! The PyTorch implementation has been validated on the LIBERO benchmark (both inference and finetuning). A few features are currently not supported (this may change in the future):
+FLA now provides PyTorch implementations of π₀ and π₀.₅ models alongside the original JAX versions! The PyTorch implementation has been validated on the LIBERO benchmark (both inference and finetuning). A few features are currently not supported (this may change in the future):
 
 - The π₀-FAST model
 - Mixed precision training
@@ -976,7 +1125,7 @@ openpi now provides PyTorch implementations of π₀ and π₀.₅ models alongs
 
 3. Apply the transformers library patches:
    ```bash
-   cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/
+   cp -r ./src/fla/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/
    ```
 
 This overwrites several files in the transformers library with necessary model changes: 1) supporting AdaRMS, 2) correctly controlling the precision of activations, and 3) allowing the KV cache to be used without being updated.
@@ -999,9 +1148,9 @@ uv run examples/convert_jax_model_to_pytorch.py \
 The PyTorch implementation uses the same API as the JAX version - you only need to change the checkpoint path to point to the converted PyTorch model:
 
 ```python
-from openpi.training import config as _config
-from openpi.policies import policy_config
-from openpi.shared import download
+from fla.training import config as _config
+from fla.policies import policy_config
+from fla.shared import download
 
 config = _config.get_config("pi05_droid")
 checkpoint_dir = "/path/to/converted/pytorch/checkpoint"
@@ -1127,7 +1276,7 @@ python scripts/benchmark_recap.py --compare-paper --run_training
 ### Using a Trained RECAP Policy
 
 ```python
-from openpi.recap.pi0_recap import Pi0RECAPConfig
+from fla.recap.pi0_recap import Pi0RECAPConfig
 import jax
 
 # Create and load policy

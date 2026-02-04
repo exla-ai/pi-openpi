@@ -9,11 +9,11 @@ import numpy as np
 import tqdm
 import tyro
 
-import openpi.models.model as _model
-import openpi.shared.normalize as normalize
-import openpi.training.config as _config
-import openpi.training.data_loader as _data_loader
-import openpi.transforms as transforms
+import fla.models.model as _model
+import fla.shared.normalize as normalize
+import fla.training.config as _config
+import fla.training.data_loader as _data_loader
+import fla.transforms as transforms
 
 
 class RemoveStrings(transforms.DataTransformFn):

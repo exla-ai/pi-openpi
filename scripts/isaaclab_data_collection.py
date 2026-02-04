@@ -283,7 +283,7 @@ def create_isaaclab_collector(args):
             """Load the RECAP policy from checkpoint."""
             import jax
             import jax.numpy as jnp
-            from openpi.recap.pi0_recap import Pi0RECAPConfig
+            from fla.recap.pi0_recap import Pi0RECAPConfig
 
             checkpoint_path = self.args.checkpoint_path
             if checkpoint_path is None:
@@ -336,7 +336,7 @@ def create_isaaclab_collector(args):
             """Get action from checkpoint policy."""
             import jax
             import jax.numpy as jnp
-            from openpi.models.model import Observation
+            from fla.models.model import Observation
 
             # Load policy on first call
             if not hasattr(self, 'policy_loaded') or not self.policy_loaded:

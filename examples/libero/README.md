@@ -27,7 +27,7 @@ You can customize the loaded checkpoint by providing additional `SERVER_ARGS` (s
 For example:
 
 ```bash
-# To load a custom checkpoint (located in the top-level openpi/ directory):
+# To load a custom checkpoint (located in the top-level repo directory):
 export SERVER_ARGS="--env LIBERO policy:checkpoint --policy.config pi05_libero --policy.dir ./my_custom_checkpoint"
 
 # To run the libero_10 task suite:
@@ -64,7 +64,7 @@ uv run scripts/serve_policy.py --env LIBERO
 ## Results
 
 If you want to reproduce the following numbers, you can evaluate the checkpoint at `gs://openpi-assets/checkpoints/pi05_libero/`. This
-checkpoint was trained in openpi with the `pi05_libero` config.
+checkpoint was trained in FLA with the `pi05_libero` config.
 
 | Model | Libero Spatial | Libero Object | Libero Goal | Libero 10 | Average |
 |-------|---------------|---------------|-------------|-----------|---------|
