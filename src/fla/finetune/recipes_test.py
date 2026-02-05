@@ -17,6 +17,7 @@ def test_list_recipes_nonempty():
     recipes = list_recipes()
     assert recipes
     assert any(r.name == "pi0_frozen_backbone" for r in recipes)
+    assert any(r.name == "pi05_frozen_backbone" for r in recipes)
 
 
 def test_build_train_config_basic():

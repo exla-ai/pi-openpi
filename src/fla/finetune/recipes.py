@@ -55,17 +55,17 @@ class RecipeOverrides:
     resume: bool | None = None
 
 
-def list_recipes() -> list[RecipeSpec]:
+def _recipe_specs(prefix: str, model_label: str) -> list[RecipeSpec]:
     return [
         RecipeSpec(
-            name="pi0_frozen_backbone",
-            description="Freeze VLM backbone, train action expert (Pi0.5 base).",
+            name=f"{prefix}frozen_backbone",
+            description=f"Freeze VLM backbone, train action expert ({model_label} base).",
             supports_lora=True,
             supports_full_finetune=True,
             supports_ewc=True,
         ),
         RecipeSpec(
-            name="pi0_full_finetune",
+            name=f"{prefix}full_finetune",
             description="Full-parameter fine-tuning (no frozen weights).",
             supports_lora=False,
             supports_full_finetune=True,
@@ -73,7 +73,7 @@ def list_recipes() -> list[RecipeSpec]:
             default_peak_lr=1e-5,
         ),
         RecipeSpec(
-            name="pi0_lora",
+            name=f"{prefix}lora",
             description="LoRA adapters on VLM + action expert for efficient fine-tuning.",
             supports_lora=True,
             supports_full_finetune=False,
@@ -83,12 +83,19 @@ def list_recipes() -> list[RecipeSpec]:
             default_num_train_steps=20_000,
         ),
         RecipeSpec(
-            name="pi0_ewc_finetune",
+            name=f"{prefix}ewc_finetune",
             description="Frozen-backbone fine-tuning with EWC regularization.",
             supports_lora=False,
             supports_full_finetune=False,
             supports_ewc=True,
         ),
+    ]
+
+
+def list_recipes() -> list[RecipeSpec]:
+    return [
+        *_recipe_specs("pi0_", "Pi0"),
+        *_recipe_specs("pi05_", "Pi0.5"),
     ]
 
 
@@ -155,6 +162,12 @@ def build_train_config(recipe_name: str, overrides: RecipeOverrides) -> TrainCon
     import flax.nnx as nnx
     spec = _get_recipe_spec(recipe_name)
 
+    normalized_recipe = recipe_name
+    if recipe_name.startswith("pi05_"):
+        normalized_recipe = recipe_name.replace("pi05_", "pi0_", 1)
+        if overrides.base_model == "pi0":
+            raise ValueError("pi05_* recipes require base_model='pi05'")
+
     config_name = overrides.config_name or recipe_name
     num_train_steps = overrides.num_train_steps if overrides.num_train_steps is not None else spec.default_num_train_steps
     batch_size = overrides.batch_size if overrides.batch_size is not None else spec.default_batch_size
@@ -181,11 +194,11 @@ def build_train_config(recipe_name: str, overrides: RecipeOverrides) -> TrainCon
     ema_decay: float | None = 0.99
     continual_cfg = continual_learning.ContinualLearningConfig()
 
-    if recipe_name == "pi0_full_finetune":
+    if normalized_recipe == "pi0_full_finetune":
         freeze_filter = nnx.Nothing
         model_kwargs["freeze_vision_backbone"] = False
         ema_decay = 0.99
-    elif recipe_name == "pi0_lora":
+    elif normalized_recipe == "pi0_lora":
         if overrides.paligemma_variant is None:
             model_kwargs["paligemma_variant"] = "gemma_2b_lora"
         if overrides.action_expert_variant is None:
@@ -197,7 +210,7 @@ def build_train_config(recipe_name: str, overrides: RecipeOverrides) -> TrainCon
             action_expert_variant=model_kwargs["action_expert_variant"],
         ).get_freeze_filter()
         ema_decay = None
-    elif recipe_name == "pi0_ewc_finetune":
+    elif normalized_recipe == "pi0_ewc_finetune":
         continual_cfg = continual_learning.ContinualLearningConfig(
             ewc=continual_learning.EWCConfig(enabled=True)
         )

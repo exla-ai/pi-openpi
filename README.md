@@ -2,7 +2,7 @@
 
 **Fine-tune Vision-Language-Action models on any robotics dataset.**
 
-This repository provides infrastructure for fine-tuning [Physical Intelligence's Pi0/Pi0.5](https://www.physicalintelligence.company/) VLA models on robotics manipulation datasets. It supports all major open-source datasets in the [LeRobot](https://huggingface.co/lerobot) ecosystem.
+This repository provides infrastructure for fine-tuning [Physical Intelligence's Pi0/Pi0.5](https://www.physicalintelligence.company/) VLA models on robotics manipulation datasets. It supports any dataset you can package in the [LeRobot](https://huggingface.co/lerobot) format (including all major open-source LeRobot datasets).
 
 ---
 
@@ -10,7 +10,7 @@ This repository provides infrastructure for fine-tuning [Physical Intelligence's
 
 | Feature | Description |
 |---------|-------------|
-| **Any Dataset** | Train on DROID, LIBERO, Open X-Embodiment, ALOHA, or your own data |
+| **Any Dataset** | Train on DROID, LIBERO, Open X-Embodiment, ALOHA, or your own LeRobot-format data |
 | **Cross-Embodiment** | Single model works across different robot types (7-DOF, 14-DOF, bimanual) |
 | **Efficient Training** | Frozen backbone fine-tuning: 300M trainable params, 4-8 hours on A100 |
 | **Production Ready** | Docker-based evaluation, model serving, and deployment |
@@ -34,6 +34,14 @@ fla-benchmark \
   --config your_config \
   --repo-ids your-org/your_dataset \
   --max-samples 1024
+
+# Full eval (ALOHA + LIBERO + dataset)
+fla-benchmark \
+  --suite full \
+  --checkpoint-dir ./checkpoints/your_config/your_exp/30000 \
+  --config your_config \
+  --repo-ids your-org/your_dataset \
+  --output evaluation_results.json
 ```
 
 ---
@@ -47,10 +55,10 @@ fla-benchmark \
 | **OpenVLA‑OFT** | Optimized fine-tuning: action chunking + continuous actions + L1 regression | Continuous actions | Medium | [OFT paper](https://arxiv.org/abs/2502.19645) • [OFT site](https://openvla-oft.github.io/) | External |
 | **Octo Fine‑Tuning** | Diffusion-policy fine-tuning for generalist robot policies | Diffusion actions | Medium | [Octo repo](https://github.com/octo-models/octo) | External |
 | **RT‑2 Co‑Fine‑Tuning** | Co-train on web VLM data + robot data, actions as text tokens | Action tokens | High | [RT‑2 project](https://robotics-transformer2.github.io/) | External |
-| **Knowledge Insulation (PI)** | Insulate VLM backbone while training action expert on continuous actions | Continuous actions | Medium | [Knowledge Insulation](https://www.physicalintelligence.company/research/knowledge_insulation) | Planned |
+| **Knowledge Insulation (PI)** | Insulate VLM backbone while training action expert on continuous actions | Continuous actions | Medium | [Knowledge Insulation](https://www.physicalintelligence.company/research/knowledge_insulation) | Supported (Pi0/Pi0.5 frozen-backbone recipes) |
 
 **Legend:**  
-**Supported** = implemented in FLA • **Planned** = documented but not yet implemented • **External** = reference implementation elsewhere
+**Supported** = implemented in FLA • **External** = reference implementation elsewhere
 
 ---
 
@@ -138,6 +146,8 @@ python scripts/finetune.py \
   --repo-id-to-prompt "your-org/my-robot-dataset:Pick up the red block" \
   --action-dim 7 \
   --exp-name v1
+
+To fine-tune Pi0.5 specifically, use the pi05 recipes (e.g. `pi05_frozen_backbone`, `pi05_lora`, `pi05_full_finetune`).
 
 # Optional: compute norm stats (advanced)
 # python scripts/compute_norm_stats.py <config_name>
